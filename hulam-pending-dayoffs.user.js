@@ -4,6 +4,9 @@
 // @namespace   scarf
 // @match       https://www.hulam.co.kr/hulam/p_holiday_applicaiton_list.php*
 // @match       https://www.hulam.co.kr/hulam/p_annual_master.php*
+// @homepageURL https://gist.github.com/scarf005/2b0dad03d4802ad2e2bd572f8c073e39
+// @supportURL  https://gist.github.com/scarf005/2b0dad03d4802ad2e2bd572f8c073e39
+// @downloadURL https://gist.github.com/scarf005/2b0dad03d4802ad2e2bd572f8c073e39/raw/hulam-pending-dayoffs.user.js
 // @grant       none
 // @version     0.0.0
 // @author      scarf
