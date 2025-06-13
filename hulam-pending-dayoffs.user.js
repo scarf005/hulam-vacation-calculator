@@ -8,17 +8,18 @@
 // @supportURL  https://gist.github.com/scarf005/2b0dad03d4802ad2e2bd572f8c073e39
 // @downloadURL https://gist.github.com/scarf005/2b0dad03d4802ad2e2bd572f8c073e39/raw/hulam-pending-dayoffs.user.js
 // @grant       none
-// @version     0.0.0
+// @version     0.0.1
 // @author      scarf
 // ==/UserScript==
 
 const DAYOFF_KEY = "total-pending-dayoffs"
-
+const dayRegex = /(?<day>[\d.]+)/
 const main = () => {
   const pendings = Array.from(document.querySelectorAll("tbody tr"))
     .filter(el => el.querySelector("td:nth-of-type(4)")?.innerText === "승인대기")
-    .map(el => el.querySelector("td:nth-of-type(3)")?.innerText.replace("일", ""))
+    .flatMap(el => dayRegex.exec(el.querySelector("td:nth-of-type(3)")?.innerText)?.groups?.day ?? [])
 
+  console.log(pendings)
   if (pendings.length) {
     const days = pendings.reduce((a, b) => +a + +b)
     localStorage.setItem(DAYOFF_KEY, days)
