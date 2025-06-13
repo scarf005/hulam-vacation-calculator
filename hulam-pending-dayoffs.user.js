@@ -9,7 +9,7 @@
 // @author      scarf
 // ==/UserScript==
 
-const DAYOFF_KEY = "total-pending-day-offs"
+const DAYOFF_KEY = "total-pending-dayoffs"
 
 const main = () => {
   const pendings = Array.from(document.querySelectorAll("tbody tr"))
