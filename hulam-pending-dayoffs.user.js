@@ -8,7 +8,7 @@
 // @supportURL  https://gist.github.com/scarf005/2b0dad03d4802ad2e2bd572f8c073e39
 // @downloadURL https://gist.github.com/scarf005/2b0dad03d4802ad2e2bd572f8c073e39/raw/hulam-pending-dayoffs.user.js
 // @grant       none
-// @version     1.0.0
+// @version     1.1.0
 // @author      scarf
 // ==/UserScript==
 
@@ -180,9 +180,18 @@ const addCalculateButton = () => {
   targetArea.append(calcButton)
 }
 
+/** 휴가사용대장 사용 종료일을 기본값으로 표시 */
+const switchToDueDateView = () => {
+  const url = "https://www.hulam.co.kr/hulam/p_annual_master.php"
+  const tab = document.querySelector(`li.page_tab_list a[href="${url}"]`)
+  if (!tab) return
+  tab.href = `${url}?today=${new Date().getFullYear()}-12-31`
+}
+
 const run = () => {
   addCalculateButton()
   displayActualRemainingDays()
+  switchToDueDateView()
 }
 
 run()
