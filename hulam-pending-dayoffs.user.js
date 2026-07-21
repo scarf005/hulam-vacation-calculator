@@ -59,6 +59,7 @@ const categorize = (rowEl, kindCell) => {
 
 /**
  * @typedef {object} Holiday
+ * @property {string} date - 휴가 날짜 (e.g., '2026-07-21')
  * @property {number} year - 휴가 연도 (날짜 셀 앞 4자리)
  * @property {string} category - 휴가 종류 (연차 / 특별휴가 / 보상휴가 등)
  * @property {number} day - 휴가 일수 (e.g., 1, 0.5, 0.25)
@@ -78,14 +79,15 @@ const parseHolidayFromRow = (rowEl) => {
 
   const [dateCell, kindCell, dayCell, statusCell] = cells
 
-  const dateText = (dateCell.textContent || "").trim()
-  const year = parseInt(dateText.slice(0, 4), 10)
+  const date = (dateCell.textContent || "").trim()
+  const year = parseInt(date.slice(0, 4), 10)
   if (isNaN(year)) return null
 
   const dayText = dayCell.textContent || ""
   const day = parseFloat(dayText.match(dayRegex)?.groups?.day ?? "0")
 
   return {
+    date,
     year,
     category: categorize(rowEl, kindCell),
     day,
@@ -149,18 +151,25 @@ const fetchAllHolidayApplications = async (
  */
 
 /**
- * 해당 연도의 휴가 목록을 종류별 사용 일수로 집계합니다.
- * (승인대기 + 승인완료를 실제 사용으로 봅니다)
+ * 해당 연도의 실제 사용(승인대기 + 승인완료) 휴가만 골라 최신순으로 정렬합니다.
  * @param {Holiday[]} holidays
  * @param {number} year - 집계할 연도
+ * @returns {Holiday[]}
+ */
+const collectUsage = (holidays, year) =>
+  holidays
+    .filter((h) => h.year === year && CONSUMING_STATUSES.has(h.status))
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+
+/**
+ * 사용 내역을 종류별 합계로 집계합니다.
+ * @param {Holiday[]} holidays
  * @returns {Usage}
  */
-const summarize = (holidays, year) => {
+const totalsByCategory = (holidays) => {
   /** @type {Usage} */
   const usage = {}
   for (const holiday of holidays) {
-    if (holiday.year !== year) continue
-    if (!CONSUMING_STATUSES.has(holiday.status)) continue
     usage[holiday.category] = (usage[holiday.category] ?? 0) + holiday.day
   }
   return usage
@@ -170,21 +179,24 @@ const summarize = (holidays, year) => {
 // 저장/조회 로직
 // =============================================================================
 
-/** @returns {Usage | null} */
+/**
+ * 캐시된 사용 내역(상세 목록)을 읽어옵니다.
+ * @returns {Holiday[] | null}
+ */
 const getUsage = () => {
   const raw = localStorage.getItem(USAGE_KEY)
   if (!raw) return null
   try {
     const parsed = JSON.parse(raw)
-    return typeof parsed === "object" && parsed !== null ? parsed : null
+    return Array.isArray(parsed) ? parsed : null
   } catch {
     return null
   }
 }
 
-/** @param {Usage} usage */
-const saveUsage = (usage) =>
-  localStorage.setItem(USAGE_KEY, JSON.stringify(usage))
+/** @param {Holiday[]} holidays */
+const saveUsage = (holidays) =>
+  localStorage.setItem(USAGE_KEY, JSON.stringify(holidays))
 
 /** 소수점 오차를 다듬어 표시용 숫자로 변환합니다. */
 const fmt = (/** @type {number} */ n) => parseFloat(n.toFixed(4))
@@ -194,16 +206,76 @@ const fmt = (/** @type {number} */ n) => parseFloat(n.toFixed(4))
 // =============================================================================
 
 const DISPLAY_ID = "vacation-usage-display"
+const TOOLTIP_ID = "vacation-usage-tooltip"
 
 /** 집계 대상 연도 (올해) */
 const targetYear = new Date().getFullYear()
 
+/** 호버 시 표시할 상세 내역 툴팁(싱글턴)을 가져옵니다. */
+const getTooltip = () => {
+  let tip = document.getElementById(TOOLTIP_ID)
+  if (tip) return tip
+
+  tip = document.createElement("div")
+  tip.id = TOOLTIP_ID
+  Object.assign(tip.style, {
+    position: "fixed",
+    zIndex: "10000",
+    display: "none",
+    maxHeight: "70vh",
+    overflowY: "auto",
+    padding: "10px 12px",
+    background: "#2b2b2b",
+    color: "#fff",
+    fontSize: "12px",
+    fontWeight: "normal",
+    lineHeight: "1.5",
+    borderRadius: "8px",
+    boxShadow: "0 4px 16px rgba(0, 0, 0, 0.35)",
+  })
+  document.body.append(tip)
+  return tip
+}
+
 /**
- * 사용 일수를 화면에 표시합니다.
- * @param {Usage | null} usage
+ * 상세 내역(언제·며칠 썼는지)을 툴팁 안에 종류별로 그려 넣습니다.
+ * @param {HTMLElement} tip
+ * @param {Holiday[]} holidays - 최신순 정렬된 올해 사용 내역
+ */
+const fillTooltip = (tip, holidays) => {
+  tip.textContent = ""
+
+  const totals = totalsByCategory(holidays)
+  const categories = Object.keys(totals).sort((a, b) => totals[b] - totals[a])
+
+  for (const category of categories) {
+    const header = document.createElement("div")
+    header.textContent = `${category} — 합계 ${fmt(totals[category])}일`
+    Object.assign(header.style, {
+      fontWeight: "bold",
+      margin: "8px 0 4px",
+      paddingBottom: "2px",
+      borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
+    })
+    if (category === categories[0]) header.style.marginTop = "0"
+    tip.append(header)
+
+    for (const holiday of holidays.filter((h) => h.category === category)) {
+      const row = document.createElement("div")
+      const status = holiday.status === "승인대기" ? " (대기)" : ""
+      row.textContent = `${holiday.date}  ${fmt(holiday.day)}일${status}`
+      row.style.whiteSpace = "nowrap"
+      tip.append(row)
+    }
+  }
+}
+
+/**
+ * 사용 일수를 화면에 표시하고, 호버 시 상세 내역 툴팁을 연결합니다.
+ * @param {Holiday[] | null} holidays - 올해 사용 내역 (없으면 null)
  * @param {boolean} [loading] - 계산 중 여부
  */
-const render = (usage, loading = false) => {
+const render = (holidays, loading = false) => {
   const targetArea = document.querySelector(".row_tit")
   if (!targetArea) return
 
@@ -211,13 +283,18 @@ const render = (usage, loading = false) => {
     document.getElementById(DISPLAY_ID) ?? document.createElement("span")
   )
   el.id = DISPLAY_ID
-  el.style.marginLeft = "12px"
-  el.style.fontWeight = "bold"
-  el.style.color = "#e74c3c"
+  Object.assign(el.style, {
+    marginLeft: "12px",
+    fontWeight: "bold",
+    color: "#e74c3c",
+    cursor: holidays && holidays.length > 0 ? "help" : "default",
+    textDecoration: holidays && holidays.length > 0
+      ? "underline dotted"
+      : "none",
+  })
 
-  const entries = usage
-    ? Object.entries(usage).filter(([, day]) => day > 0)
-    : []
+  const totals = holidays ? totalsByCategory(holidays) : {}
+  const entries = Object.entries(totals)
   const body = entries.length > 0
     ? entries.map(([category, day]) => `${category} ${fmt(day)}일`).join(" · ")
     : "사용 내역 없음"
@@ -225,17 +302,40 @@ const render = (usage, loading = false) => {
   el.textContent = loading ? `${text} (갱신 중…)` : text
 
   if (!el.isConnected) targetArea.append(el)
+
+  // 호버 시 상세 내역 툴팁 연결
+  let hideTimer = 0
+  const showTooltip = () => {
+    if (!holidays || holidays.length === 0) return
+    clearTimeout(hideTimer)
+    const tip = getTooltip()
+    fillTooltip(tip, holidays)
+    const rect = el.getBoundingClientRect()
+    tip.style.left = `${rect.left}px`
+    tip.style.top = `${rect.bottom + 6}px`
+    tip.style.display = "block"
+  }
+  const hideTooltip = () => {
+    hideTimer = setTimeout(() => {
+      getTooltip().style.display = "none"
+    }, 150)
+  }
+  el.onmouseenter = showTooltip
+  el.onmouseleave = hideTooltip
+  const tip = getTooltip()
+  tip.onmouseenter = () => clearTimeout(hideTimer)
+  tip.onmouseleave = hideTooltip
 }
 
 /**
- * 신청 내역을 받아 올해 사용 일수를 계산하고 표시/저장합니다.
+ * 신청 내역을 받아 올해 사용 내역을 계산하고 표시/저장합니다.
  * 캐시된 값을 먼저 그리고, 백그라운드에서 최신 값으로 갱신합니다.
  */
 const calculateUsage = async () => {
   render(getUsage(), true)
 
   try {
-    const usage = summarize(await fetchAllHolidayApplications(), targetYear)
+    const usage = collectUsage(await fetchAllHolidayApplications(), targetYear)
     saveUsage(usage)
     render(usage)
   } catch (error) {
