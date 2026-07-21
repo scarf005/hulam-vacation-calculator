@@ -1,6 +1,7 @@
+// @ts-check
 // ==UserScript==
-// @name        실제 잔여 휴가일 계산기
-// @description 모든 페이지의 승인대기 휴가를 계산하고, 실제 잔여 휴가일을 표시합니다.
+// @name        휴가 사용일 계산기
+// @description 신청 내역을 종류(연차/특별휴가/보상휴가 등)별로 구분해 올해 사용한 일수를 자동으로 계산해 표시합니다.
 // @namespace   scarf
 // @match       https://www.hulam.co.kr/hulam/p_holiday_applicaiton_list.php*
 // @match       https://www.hulam.co.kr/hulam/p_annual_master.php*
@@ -8,11 +9,49 @@
 // @supportURL  https://gist.github.com/scarf005/2b0dad03d4802ad2e2bd572f8c073e39
 // @downloadURL https://gist.github.com/scarf005/2b0dad03d4802ad2e2bd572f8c073e39/raw/hulam-pending-dayoffs.user.js
 // @grant       none
-// @version     1.1.0
+// @version     2.1.0
 // @author      scarf
 // ==/UserScript==
 
-const DAYOFF_KEY = "total-pending-dayoffs"
+const USAGE_KEY = "vacation-usage"
+
+/**
+ * 실제 차감으로 이어지는(승인대기/승인완료) 상태 목록.
+ * 반려·취소된 신청은 사용으로 치지 않으므로 제외합니다.
+ */
+const CONSUMING_STATUSES = new Set(["승인대기", "승인완료"])
+
+/** 연차 계열(반차/반반차/시간단위 등)로 판단할 구분 문구 */
+const ANNUAL_KIND_PATTERN = /연차|반차|반반차/
+
+/** 행 액션 버튼에서 신청 유형(hapl_02)을 추출: '1' = 연차휴가신청 */
+const haplTypeRegex = /Open(?:Add|View)Form\('(\d+)'/
+
+/**
+ * 구분 셀에서 라벨 span(`일반` 등)을 제외한 기본 종류 텍스트만 뽑습니다.
+ * @param {Element} kindCell
+ * @returns {string} e.g. '연차', '특별휴가', '보상휴가'
+ */
+const baseKind = (kindCell) => {
+  const clone = /** @type {Element} */ (kindCell.cloneNode(true))
+  clone.querySelectorAll("*").forEach((child) => child.remove())
+  return (clone.textContent || "").trim()
+}
+
+/**
+ * 휴가 행을 종류(카테고리)로 분류합니다.
+ * 연차휴가신청(hapl_02='1')이거나 연차 계열 문구면 `연차`로 통합하고,
+ * 그 외(특별휴가/보상휴가 등)는 기본 종류 텍스트를 그대로 카테고리로 씁니다.
+ * @param {HTMLTableRowElement} rowEl
+ * @param {Element} kindCell
+ * @returns {string}
+ */
+const categorize = (rowEl, kindCell) => {
+  const base = baseKind(kindCell)
+  const haplType = rowEl.innerHTML.match(haplTypeRegex)?.[1]
+  if (haplType === "1" || ANNUAL_KIND_PATTERN.test(base)) return "연차"
+  return base || "기타"
+}
 
 // =============================================================================
 // 데이터 파싱 및 Fetch 로직
@@ -20,8 +59,8 @@ const DAYOFF_KEY = "total-pending-dayoffs"
 
 /**
  * @typedef {object} Holiday
- * @property {Date} date - 휴가 날짜
- * @property {string} kind - 휴가 구분 (e.g., '연차', '반차(오전)')
+ * @property {number} year - 휴가 연도 (날짜 셀 앞 4자리)
+ * @property {string} category - 휴가 종류 (연차 / 특별휴가 / 보상휴가 등)
  * @property {number} day - 휴가 일수 (e.g., 1, 0.5, 0.25)
  * @property {string} status - 휴가 상태 (e.g., '승인대기')
  */
@@ -39,12 +78,16 @@ const parseHolidayFromRow = (rowEl) => {
 
   const [dateCell, kindCell, dayCell, statusCell] = cells
 
+  const dateText = (dateCell.textContent || "").trim()
+  const year = parseInt(dateText.slice(0, 4), 10)
+  if (isNaN(year)) return null
+
   const dayText = dayCell.textContent || ""
   const day = parseFloat(dayText.match(dayRegex)?.groups?.day ?? "0")
 
   return {
-    date: new Date((dateCell.textContent || "").trim()),
-    kind: (kindCell.textContent || "").trim(),
+    year,
+    category: categorize(rowEl, kindCell),
     day,
     status: (statusCell.textContent || "").trim(),
   }
@@ -58,7 +101,11 @@ const parseHolidayFromRow = (rowEl) => {
 const fetchAllHolidayApplications = async (
   baseUrl = "/hulam/p_holiday_applicaiton_list.php",
 ) => {
-  const firstPageParams = new URLSearchParams({ toYear: "", toMonth: "", page: "1" })
+  const firstPageParams = new URLSearchParams({
+    toYear: "",
+    toMonth: "",
+    page: "1",
+  })
   const firstPageUrl = `${baseUrl}?${firstPageParams.toString()}`
   const firstPageHtml = await fetch(firstPageUrl).then((res) => res.text())
   const doc = new DOMParser().parseFromString(firstPageHtml, "text/html")
@@ -71,10 +118,17 @@ const fetchAllHolidayApplications = async (
 
   const allPageUrls = Array.from(
     { length: maxPage - 1 },
-    (_, i) => `${baseUrl}?${new URLSearchParams({ toYear: "", toMonth: "", page: `${i + 2}` })}`,
+    (_, i) =>
+      `${baseUrl}?${new URLSearchParams({
+        toYear: "",
+        toMonth: "",
+        page: `${i + 2}`,
+      })}`,
   )
 
-  const allPagePromises = allPageUrls.map((url) => fetch(url).then((res) => res.text()))
+  const allPagePromises = allPageUrls.map((url) =>
+    fetch(url).then((res) => res.text())
+  )
   const allHtmlContents = await Promise.all(allPagePromises)
 
   return [firstPageHtml, ...allHtmlContents].flatMap((html) => {
@@ -87,97 +141,107 @@ const fetchAllHolidayApplications = async (
 }
 
 // =============================================================================
-// UI 업데이트 및 이벤트 핸들링 로직
+// 집계 로직
 // =============================================================================
 
-const getDays = () => {
-  const raw = localStorage.getItem(DAYOFF_KEY)
-  return raw ? parseFloat(raw) : null
-}
+/**
+ * @typedef {Record<string, number>} Usage - 종류별 사용 일수
+ */
 
 /**
- * localStorage의 값을 읽어 실제 잔여 휴가일을 화면에 표시합니다.
- * (p_annual_master.php 페이지에서만 동작)
+ * 해당 연도의 휴가 목록을 종류별 사용 일수로 집계합니다.
+ * (승인대기 + 승인완료를 실제 사용으로 봅니다)
+ * @param {Holiday[]} holidays
+ * @param {number} year - 집계할 연도
+ * @returns {Usage}
  */
-const displayActualRemainingDays = () => {
-  if (!globalThis.location.pathname.includes("/hulam/p_annual_master.php")) return
-
-  const days = getDays() ?? 0
-
-  const remainingDaysParentSpan = document.querySelector(
-    'td.point_cell:nth-of-type(6) > span > span[style*="color: var(--primary-blue-500-maincolor)"]',
-  )
-  if (!remainingDaysParentSpan) return
-
-  // 자식 span을 제외한 순수 텍스트 값만 추출하기 위한 안정적인 방법
-  const clone = remainingDaysParentSpan.cloneNode(true)
-  clone.querySelectorAll("*").forEach((child) => child.remove())
-  const currentText = (clone.textContent || "").trim()
-  const currentRemainingDays = parseFloat(currentText.replace("일", "").trim())
-  if (isNaN(currentRemainingDays)) return
-
-  const oldDisplay = remainingDaysParentSpan.querySelector(".actual-dayoff-display")
-  if (oldDisplay) oldDisplay.remove()
-
-  if (days > 0) {
-    const displayOnSpan = document.createElement("span")
-    displayOnSpan.className = "actual-dayoff-display"
-    displayOnSpan.style.display = "block"
-    displayOnSpan.style.color = "#e74c3c"
-    displayOnSpan.style.fontWeight = "bold"
-
-    const actualRemainingDays = (currentRemainingDays - days).toFixed(3)
-    displayOnSpan.innerText = `(승인대기 포함: ${actualRemainingDays}일)`
-
-    remainingDaysParentSpan.appendChild(displayOnSpan)
+const summarize = (holidays, year) => {
+  /** @type {Usage} */
+  const usage = {}
+  for (const holiday of holidays) {
+    if (holiday.year !== year) continue
+    if (!CONSUMING_STATUSES.has(holiday.status)) continue
+    usage[holiday.category] = (usage[holiday.category] ?? 0) + holiday.day
   }
+  return usage
 }
 
-/**
- * '승인대기' 휴가일 계산을 트리거하는 핸들러
- * @param {MouseEvent} event - 클릭 이벤트 객체
- */
-const handleCalculateClick = async (event) => {
-  const button = /** @type {HTMLButtonElement} */ (event.currentTarget)
-  button.disabled = true
-  button.textContent = "계산 중..."
+// =============================================================================
+// 저장/조회 로직
+// =============================================================================
 
+/** @returns {Usage | null} */
+const getUsage = () => {
+  const raw = localStorage.getItem(USAGE_KEY)
+  if (!raw) return null
   try {
-    const allHolidays = await fetchAllHolidayApplications()
-    const totalPendingDays = allHolidays
-      .filter((holiday) => holiday.status === "승인대기")
-      .reduce((total, holiday) => total + holiday.day, 0)
-
-    localStorage.setItem(DAYOFF_KEY, totalPendingDays.toString())
-    button.textContent = `${totalPendingDays}일`
-
-    displayActualRemainingDays()
-  } catch (error) {
-    console.error("휴가 내역 계산 중 오류 발생:", error)
-    alert("오류가 발생했습니다. 콘솔을 확인해주세요.")
-    button.textContent = "계산 실패"
-  } finally {
-    setTimeout(() => {
-      button.disabled = false
-    }, 2000)
+    const parsed = JSON.parse(raw)
+    return typeof parsed === "object" && parsed !== null ? parsed : null
+  } catch {
+    return null
   }
 }
 
+/** @param {Usage} usage */
+const saveUsage = (usage) =>
+  localStorage.setItem(USAGE_KEY, JSON.stringify(usage))
+
+/** 소수점 오차를 다듬어 표시용 숫자로 변환합니다. */
+const fmt = (/** @type {number} */ n) => parseFloat(n.toFixed(4))
+
+// =============================================================================
+// UI 표시 로직
+// =============================================================================
+
+const DISPLAY_ID = "vacation-usage-display"
+
+/** 집계 대상 연도 (올해) */
+const targetYear = new Date().getFullYear()
+
 /**
- * 페이지에 계산 버튼을 추가하는 함수
+ * 사용 일수를 화면에 표시합니다.
+ * @param {Usage | null} usage
+ * @param {boolean} [loading] - 계산 중 여부
  */
-const addCalculateButton = () => {
+const render = (usage, loading = false) => {
   const targetArea = document.querySelector(".row_tit")
   if (!targetArea) return
 
-  const calcButton = document.createElement("button")
-  calcButton.textContent = `승인대기 휴가 계산 (${getDays() ?? "?"}일)`
-  calcButton.type = "button"
-  calcButton.className = "btn btn_sm"
-  calcButton.style.marginLeft = "10px"
+  const el = /** @type {HTMLElement} */ (
+    document.getElementById(DISPLAY_ID) ?? document.createElement("span")
+  )
+  el.id = DISPLAY_ID
+  el.style.marginLeft = "12px"
+  el.style.fontWeight = "bold"
+  el.style.color = "#e74c3c"
 
-  calcButton.addEventListener("click", handleCalculateClick)
-  targetArea.append(calcButton)
+  const entries = usage
+    ? Object.entries(usage).filter(([, day]) => day > 0)
+    : []
+  const body = entries.length > 0
+    ? entries.map(([category, day]) => `${category} ${fmt(day)}일`).join(" · ")
+    : "사용 내역 없음"
+  const text = `${targetYear}년 사용: ${body}`
+  el.textContent = loading ? `${text} (갱신 중…)` : text
+
+  if (!el.isConnected) targetArea.append(el)
+}
+
+/**
+ * 신청 내역을 받아 올해 사용 일수를 계산하고 표시/저장합니다.
+ * 캐시된 값을 먼저 그리고, 백그라운드에서 최신 값으로 갱신합니다.
+ */
+const calculateUsage = async () => {
+  render(getUsage(), true)
+
+  try {
+    const usage = summarize(await fetchAllHolidayApplications(), targetYear)
+    saveUsage(usage)
+    render(usage)
+  } catch (error) {
+    console.error("휴가 사용일 계산 중 오류 발생:", error)
+    render(getUsage())
+  }
 }
 
 /** 휴가사용대장 사용 종료일을 기본값으로 표시 */
@@ -189,9 +253,16 @@ const switchToDueDateView = () => {
 }
 
 const run = () => {
-  addCalculateButton()
-  displayActualRemainingDays()
   switchToDueDateView()
+
+  // 신청 목록 페이지에서만 전체 페이지를 가져와 자동 계산
+  if (
+    globalThis.location.pathname.includes(
+      "/hulam/p_holiday_applicaiton_list.php",
+    )
+  ) {
+    calculateUsage()
+  }
 }
 
 run()
