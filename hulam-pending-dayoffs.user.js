@@ -9,7 +9,7 @@
 // @supportURL  https://gist.github.com/scarf005/2b0dad03d4802ad2e2bd572f8c073e39
 // @downloadURL https://gist.github.com/scarf005/2b0dad03d4802ad2e2bd572f8c073e39/raw/hulam-pending-dayoffs.user.js
 // @grant       none
-// @version     2.1.0
+// @version     2.2.0
 // @author      scarf
 // ==/UserScript==
 
@@ -211,6 +211,17 @@ const TOOLTIP_ID = "vacation-usage-tooltip"
 /** 집계 대상 연도 (올해) */
 const targetYear = new Date().getFullYear()
 
+/**
+ * 인라인 스타일을 !important로 강제해 페이지 CSS(div 색상 규칙 등)에 눌리지 않게 합니다.
+ * @param {HTMLElement} elem
+ * @param {Record<string, string>} styles
+ */
+const forceStyle = (elem, styles) => {
+  for (const [prop, value] of Object.entries(styles)) {
+    elem.style.setProperty(prop, value, "important")
+  }
+}
+
 /** 호버 시 표시할 상세 내역 툴팁(싱글턴)을 가져옵니다. */
 const getTooltip = () => {
   let tip = document.getElementById(TOOLTIP_ID)
@@ -218,60 +229,83 @@ const getTooltip = () => {
 
   tip = document.createElement("div")
   tip.id = TOOLTIP_ID
-  Object.assign(tip.style, {
+  forceStyle(tip, {
     position: "fixed",
-    zIndex: "10000",
+    "z-index": "10000",
     display: "none",
-    maxHeight: "70vh",
-    overflowY: "auto",
+    "max-height": "70vh",
+    "overflow-y": "auto",
     padding: "10px 12px",
     background: "#2b2b2b",
-    color: "#fff",
-    fontSize: "12px",
-    fontWeight: "normal",
-    lineHeight: "1.5",
-    borderRadius: "8px",
-    boxShadow: "0 4px 16px rgba(0, 0, 0, 0.35)",
+    color: "#ffffff",
+    "font-size": "12px",
+    "font-weight": "normal",
+    "line-height": "1.5",
+    "border-radius": "8px",
+    "box-shadow": "0 4px 16px rgba(0, 0, 0, 0.35)",
   })
   document.body.append(tip)
   return tip
 }
 
-/**
- * 상세 내역(언제·며칠 썼는지)을 툴팁 안에 종류별로 그려 넣습니다.
- * @param {HTMLElement} tip
- * @param {Holiday[]} holidays - 최신순 정렬된 올해 사용 내역
- */
-const fillTooltip = (tip, holidays) => {
-  tip.textContent = ""
+let hideTimer = 0
 
-  const totals = totalsByCategory(holidays)
-  const categories = Object.keys(totals).sort((a, b) => totals[b] - totals[a])
-
-  for (const category of categories) {
-    const header = document.createElement("div")
-    header.textContent = `${category} — 합계 ${fmt(totals[category])}일`
-    Object.assign(header.style, {
-      fontWeight: "bold",
-      margin: "8px 0 4px",
-      paddingBottom: "2px",
-      borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
-    })
-    if (category === categories[0]) header.style.marginTop = "0"
-    tip.append(header)
-
-    for (const holiday of holidays.filter((h) => h.category === category)) {
-      const row = document.createElement("div")
-      const status = holiday.status === "승인대기" ? " (대기)" : ""
-      row.textContent = `${holiday.date}  ${fmt(holiday.day)}일${status}`
-      row.style.whiteSpace = "nowrap"
-      tip.append(row)
-    }
-  }
+/** 툴팁을 숨깁니다. (짧은 지연으로 툴팁 위로 커서 이동 허용) */
+const hideTooltip = () => {
+  hideTimer = setTimeout(() => {
+    getTooltip().style.display = "none"
+  }, 150)
 }
 
 /**
- * 사용 일수를 화면에 표시하고, 호버 시 상세 내역 툴팁을 연결합니다.
+ * 특정 종류의 상세 내역(언제·며칠 썼는지)을 앵커 아래에 툴팁으로 띄웁니다.
+ * @param {HTMLElement} anchor - 기준이 되는 종류 텍스트 엘리먼트
+ * @param {string} category - 휴가 종류
+ * @param {Holiday[]} items - 해당 종류의 최신순 사용 내역
+ */
+const showTooltip = (anchor, category, items) => {
+  clearTimeout(hideTimer)
+  const tip = getTooltip()
+  tip.textContent = ""
+
+  const total = items.reduce((sum, h) => sum + h.day, 0)
+  const header = document.createElement("div")
+  header.textContent = `${category} — 합계 ${fmt(total)}일`
+  forceStyle(header, {
+    color: "#ffffff",
+    "font-weight": "bold",
+    "margin-bottom": "4px",
+    "padding-bottom": "2px",
+    "border-bottom": "1px solid rgba(255, 255, 255, 0.3)",
+  })
+  tip.append(header)
+
+  for (const holiday of items) {
+    const row = document.createElement("div")
+    const pending = holiday.status === "승인대기"
+    row.textContent = `${holiday.date}  ${fmt(holiday.day)}일${
+      pending ? " (대기)" : ""
+    }`
+    forceStyle(row, {
+      color: pending ? "#ffd27f" : "#ffffff",
+      "white-space": "nowrap",
+    })
+    tip.append(row)
+  }
+
+  // 먼저 표시해 크기를 측정한 뒤, 화면 밖으로 나가지 않게 좌표를 보정
+  tip.style.display = "block"
+  const rect = anchor.getBoundingClientRect()
+  const left = Math.max(
+    8,
+    Math.min(rect.left, globalThis.innerWidth - tip.offsetWidth - 8),
+  )
+  tip.style.left = `${left}px`
+  tip.style.top = `${rect.bottom + 6}px`
+}
+
+/**
+ * 사용 일수를 종류별로 표시하고, 각 종류에 호버 시 그 종류의 상세 내역 툴팁을 연결합니다.
  * @param {Holiday[] | null} holidays - 올해 사용 내역 (없으면 null)
  * @param {boolean} [loading] - 계산 중 여부
  */
@@ -287,41 +321,37 @@ const render = (holidays, loading = false) => {
     marginLeft: "12px",
     fontWeight: "bold",
     color: "#e74c3c",
-    cursor: holidays && holidays.length > 0 ? "help" : "default",
-    textDecoration: holidays && holidays.length > 0
-      ? "underline dotted"
-      : "none",
   })
-
-  const totals = holidays ? totalsByCategory(holidays) : {}
-  const entries = Object.entries(totals)
-  const body = entries.length > 0
-    ? entries.map(([category, day]) => `${category} ${fmt(day)}일`).join(" · ")
-    : "사용 내역 없음"
-  const text = `${targetYear}년 사용: ${body}`
-  el.textContent = loading ? `${text} (갱신 중…)` : text
-
+  el.textContent = ""
   if (!el.isConnected) targetArea.append(el)
 
-  // 호버 시 상세 내역 툴팁 연결
-  let hideTimer = 0
-  const showTooltip = () => {
-    if (!holidays || holidays.length === 0) return
-    clearTimeout(hideTimer)
-    const tip = getTooltip()
-    fillTooltip(tip, holidays)
-    const rect = el.getBoundingClientRect()
-    tip.style.left = `${rect.left}px`
-    tip.style.top = `${rect.bottom + 6}px`
-    tip.style.display = "block"
+  el.append(`${targetYear}년 사용: `)
+
+  const totals = holidays ? totalsByCategory(holidays) : {}
+  const categories = Object.keys(totals).sort((a, b) => totals[b] - totals[a])
+
+  if (categories.length === 0) {
+    el.append(loading ? "불러오는 중…" : "사용 내역 없음")
+    return
   }
-  const hideTooltip = () => {
-    hideTimer = setTimeout(() => {
-      getTooltip().style.display = "none"
-    }, 150)
-  }
-  el.onmouseenter = showTooltip
-  el.onmouseleave = hideTooltip
+
+  categories.forEach((category, i) => {
+    if (i > 0) el.append(" · ")
+
+    const items = /** @type {Holiday[]} */ (holidays).filter(
+      (h) => h.category === category,
+    )
+    const seg = document.createElement("span")
+    seg.textContent = `${category} ${fmt(totals[category])}일`
+    seg.style.cursor = "help"
+    seg.style.textDecoration = "underline dotted"
+    seg.onmouseenter = () => showTooltip(seg, category, items)
+    seg.onmouseleave = hideTooltip
+    el.append(seg)
+  })
+
+  if (loading) el.append(" (갱신 중…)")
+
   const tip = getTooltip()
   tip.onmouseenter = () => clearTimeout(hideTimer)
   tip.onmouseleave = hideTooltip
