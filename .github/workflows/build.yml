@@ -62,7 +62,7 @@ jobs:
           fi
       - name: Publish to Chrome Web Store
         if: steps.check.outputs.ready == 'true'
-        uses: mnao305/chrome-extension-upload@v5
+        uses: mnao305/chrome-extension-upload@v6.0.0
         with:
           file-path: dist/hulam-vacation-calculator-extension.zip
           extension-id: ${{ secrets.CWS_EXTENSION_ID }}
