@@ -3,9 +3,7 @@
     "semiColons": false
   },
   "tasks": {
-    "dev": "deno run --watch --allow-net main.ts"
-  },
-  "imports": {
-    "@std/assert": "jsr:@std/assert@1"
+    "build": "deno run -A build.ts",
+    "check": "deno check build.ts && deno check --config src/deno.json src/main.js"
   }
 }

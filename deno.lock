@@ -1,0 +1,11 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@zip-js/zip-js@2": "2.8.33"
+  },
+  "jsr": {
+    "@zip-js/zip-js@2.8.33": {
+      "integrity": "a2e4d0a39f6f28d55536eaeb5219ef05a3fbbc346c621d06c89ce9efc456b36d"
+    }
+  }
+}
