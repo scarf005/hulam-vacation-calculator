@@ -1,17 +1,8 @@
 // @ts-check
-// ==UserScript==
-// @name        휴가 사용일 계산기
-// @description 신청 내역을 종류(연차/특별휴가/보상휴가 등)별로 구분해 올해 사용한 일수를 자동으로 계산해 표시합니다.
-// @namespace   scarf
-// @match       https://www.hulam.co.kr/hulam/p_holiday_applicaiton_list.php*
-// @match       https://www.hulam.co.kr/hulam/p_annual_master.php*
-// @homepageURL https://gist.github.com/scarf005/2b0dad03d4802ad2e2bd572f8c073e39
-// @supportURL  https://gist.github.com/scarf005/2b0dad03d4802ad2e2bd572f8c073e39
-// @downloadURL https://gist.github.com/scarf005/2b0dad03d4802ad2e2bd572f8c073e39/raw/hulam-pending-dayoffs.user.js
-// @grant       none
-// @version     2.2.0
-// @author      scarf
-// ==/UserScript==
+// -----------------------------------------------------------------------------
+// 공용 소스: 유저스크립트와 크롬 확장(content script)이 이 파일을 그대로 공유합니다.
+// UserScript 배너/확장 manifest는 build.ts가 src/meta.json으로부터 생성합니다.
+// -----------------------------------------------------------------------------
 
 const USAGE_KEY = "vacation-usage"
 
@@ -377,7 +368,9 @@ const calculateUsage = async () => {
 /** 휴가사용대장 사용 종료일을 기본값으로 표시 */
 const switchToDueDateView = () => {
   const url = "https://www.hulam.co.kr/hulam/p_annual_master.php"
-  const tab = document.querySelector(`li.page_tab_list a[href="${url}"]`)
+  const tab = /** @type {HTMLAnchorElement | null} */ (
+    document.querySelector(`li.page_tab_list a[href="${url}"]`)
+  )
   if (!tab) return
   tab.href = `${url}?today=${new Date().getFullYear()}-12-31`
 }

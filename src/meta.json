@@ -1,0 +1,12 @@
+{
+  "name": "휴가 사용일 계산기",
+  "description": "신청 내역을 종류(연차/특별휴가/보상휴가 등)별로 구분해 올해 사용한 일수를 자동으로 계산해 표시합니다.",
+  "version": "2.2.0",
+  "author": "scarf",
+  "namespace": "scarf",
+  "repository": "scarf005/hulam-vacation-calculator",
+  "matches": [
+    "https://www.hulam.co.kr/hulam/p_holiday_applicaiton_list.php*",
+    "https://www.hulam.co.kr/hulam/p_annual_master.php*"
+  ]
+}
