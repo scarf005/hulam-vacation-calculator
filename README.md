@@ -1,26 +1,39 @@
-# 휴가 사용일 계산기
+# 휴램 휴가 사용일 계산기
 
-[hulam.co.kr](https://www.hulam.co.kr) 휴가 신청 목록에서 **올해 사용한 휴가 일수를
-종류(연차/특별휴가/보상휴가 등)별로 자동 집계**해 화면 상단에 표시하고, 각 종류에
-마우스를 올리면 날짜별 상세 내역을 툴팁으로 보여줍니다.
+<img width="556" height="182" alt="image" src="https://github.com/user-attachments/assets/578f95e0-f76e-4ae0-ad17-6801d2422b95" />
 
-하나의 소스(`src/main.js`)로 **크롬 확장**과 **유저스크립트** 두 가지를 자동 빌드합니다.
+[hulam.co.kr](https://www.hulam.co.kr) 휴가 신청 목록에서 올해 사용한 휴가 일수를 종류(연차/특별휴가/보상휴가 등)별로 자동 집계해 화면 상단에 표시하고, 각 종류에 마우스를 올리면 날짜별 상세 내역을 툴팁으로 보여줍니다.
+
+크롬 확장 프로그램 및 유저스크립트를 지원합니다.
 
 ## 설치
 
-### 1. 크롬 확장 (비개발자 권장)
+### 1. 크롬 확장 프로그램
 
-크롬 웹스토어에서 클릭 한 번으로 설치 — 별도 프로그램이 필요 없습니다.
+<img width="2560" height="1036" alt="image" src="https://github.com/user-attachments/assets/636baa83-fa63-4292-b2de-e52c7a0a2541" />
 
-> **웹스토어 링크:** 최초 게시 후 이곳에 추가됩니다.
+1. https://github.com/scarf005/hulam-vacation-calculator/releases 로 이동합니다
+2. [`.zip` 파일](https://github.com/scarf005/hulam-vacation-calculator/releases/latest/download/hulam-vacation-calculator-extension.zip)을 다운로드 후 압축 해제합니다.
 
-### 2. 유저스크립트 (Tampermonkey 사용자)
+<img width="1072" height="652" alt="image" src="https://github.com/user-attachments/assets/7eafa687-9277-491f-9aa7-0c5d31e2475f" />
 
-1. [Tampermonkey](https://www.tampermonkey.net/) 설치
+3. 크롬 주소창에서 `chrome://extensions` 를 입력하여 확장 프로그램 탭으로 진입합니다
+
+<img width="1072" height="652" alt="image" src="https://github.com/user-attachments/assets/d5337d36-570d-4738-9c6a-d2492a216e20" />
+
+4. 우측 상단의 `개발자 모드`를 활성화합니다
+
+<img width="496" height="264" alt="image" src="https://github.com/user-attachments/assets/eafed9e3-569a-41db-9069-967bad4425d4" />
+<img width="1072" height="652" alt="image" src="https://github.com/user-attachments/assets/65bd11b4-bbf3-454b-a1ea-bd90818bf444" />
+
+5. `압축해제된 확장 프로그램 로드` 를 클릭 후 2단계의 확장 프로그램 폴더를 선택하여 설치합니다.
+
+### 2. 유저스크립트
+
+1. 유저스크립트 확장 프로그램 설치 ([ViolentMonkey](https://violentmonkey.github.io/) 또는 [Tampermonkey](https://www.tampermonkey.net/) 등)
 2. 아래 링크 클릭 → 설치 화면에서 **설치**
    [`hulam-vacation-calculator.user.js`](https://github.com/scarf005/hulam-vacation-calculator/releases/latest/download/hulam-vacation-calculator.user.js)
 
-이후 새 버전이 릴리스되면 Tampermonkey가 자동으로 업데이트합니다.
 
 ## 개발
 
