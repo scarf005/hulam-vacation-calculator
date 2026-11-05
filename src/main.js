@@ -91,9 +91,7 @@ const parseHolidayFromRow = (rowEl) => {
  * @param {string} [baseUrl='/hulam/p_holiday_applicaiton_list.php'] - 휴가 신청 목록 페이지의 기본 URL
  * @returns {Promise<Holiday[]>} 모든 휴가 신청 내역 객체 배열
  */
-const fetchAllHolidayApplications = async (
-  baseUrl = "/hulam/p_holiday_applicaiton_list.php",
-) => {
+const fetchAllHolidayApplications = async (baseUrl = "/hulam/p_holiday_applicaiton_list.php") => {
   const firstPageParams = new URLSearchParams({
     toYear: "",
     toMonth: "",
@@ -119,9 +117,7 @@ const fetchAllHolidayApplications = async (
       })}`,
   )
 
-  const allPagePromises = allPageUrls.map((url) =>
-    fetch(url).then((res) => res.text())
-  )
+  const allPagePromises = allPageUrls.map((url) => fetch(url).then((res) => res.text()))
   const allHtmlContents = await Promise.all(allPagePromises)
 
   return [firstPageHtml, ...allHtmlContents].flatMap((html) => {
@@ -186,8 +182,7 @@ const getUsage = () => {
 }
 
 /** @param {Holiday[]} holidays */
-const saveUsage = (holidays) =>
-  localStorage.setItem(USAGE_KEY, JSON.stringify(holidays))
+const saveUsage = (holidays) => localStorage.setItem(USAGE_KEY, JSON.stringify(holidays))
 
 /** 소수점 오차를 다듬어 표시용 숫자로 변환합니다. */
 const fmt = (/** @type {number} */ n) => parseFloat(n.toFixed(4))
@@ -239,7 +234,8 @@ const getTooltip = () => {
   return tip
 }
 
-let hideTimer = 0
+/** @type {ReturnType<typeof setTimeout> | undefined} */
+let hideTimer
 
 /** 툴팁을 숨깁니다. (짧은 지연으로 툴팁 위로 커서 이동 허용) */
 const hideTooltip = () => {
@@ -274,9 +270,7 @@ const showTooltip = (anchor, category, items) => {
   for (const holiday of items) {
     const row = document.createElement("div")
     const pending = holiday.status === "승인대기"
-    row.textContent = `${holiday.date}  ${fmt(holiday.day)}일${
-      pending ? " (대기)" : ""
-    }`
+    row.textContent = `${holiday.date}  ${fmt(holiday.day)}일${pending ? " (대기)" : ""}`
     forceStyle(row, {
       color: pending ? "#ffd27f" : "#ffffff",
       "white-space": "nowrap",
@@ -287,10 +281,7 @@ const showTooltip = (anchor, category, items) => {
   // 먼저 표시해 크기를 측정한 뒤, 화면 밖으로 나가지 않게 좌표를 보정
   tip.style.display = "block"
   const rect = anchor.getBoundingClientRect()
-  const left = Math.max(
-    8,
-    Math.min(rect.left, globalThis.innerWidth - tip.offsetWidth - 8),
-  )
+  const left = Math.max(8, Math.min(rect.left, globalThis.innerWidth - tip.offsetWidth - 8))
   tip.style.left = `${left}px`
   tip.style.top = `${rect.bottom + 6}px`
 }
@@ -329,9 +320,7 @@ const render = (holidays, loading = false) => {
   categories.forEach((category, i) => {
     if (i > 0) el.append(" · ")
 
-    const items = /** @type {Holiday[]} */ (holidays).filter(
-      (h) => h.category === category,
-    )
+    const items = /** @type {Holiday[]} */ (holidays).filter((h) => h.category === category)
     const seg = document.createElement("span")
     seg.textContent = `${category} ${fmt(totals[category])}일`
     seg.style.cursor = "help"
@@ -382,11 +371,7 @@ const run = () => {
   switchToDueDateView()
 
   // 신청 목록 페이지에서만 전체 페이지를 가져와 자동 계산
-  if (
-    globalThis.location.pathname.includes(
-      "/hulam/p_holiday_applicaiton_list.php",
-    )
-  ) {
+  if (globalThis.location.pathname.includes("/hulam/p_holiday_applicaiton_list.php")) {
     calculateUsage()
   }
 }

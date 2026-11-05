@@ -1,24 +1,26 @@
-#!/usr/bin/env -S deno run -A
 // -----------------------------------------------------------------------------
 // src/meta.json + src/main.js → dist/ 산출물 생성
 //   - dist/<slug>.user.js                 (Tampermonkey 유저스크립트)
 //   - dist/extension/                     (크롬 MV3 확장 폴더)
 //   - dist/<slug>-extension.zip           (웹스토어 업로드용 zip)
+// 실행: `vp run build` (Node 22.18+ 의 TypeScript 직접 실행 사용)
 // -----------------------------------------------------------------------------
-import { BlobWriter, TextReader, Uint8ArrayReader, ZipWriter } from "jsr:@zip-js/zip-js@2"
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import { fileURLToPath } from "node:url"
+import { zipSync } from "fflate"
 
-/** @typedef {{ name:string, description:string, version:string, author:string, namespace:string, repository:string, matches:string[] }} Meta */
-const meta = JSON.parse(await Deno.readTextFile(new URL("./src/meta.json", import.meta.url)))
-const source = await Deno.readTextFile(new URL("./src/main.js", import.meta.url))
+const path = (relative: string) => fileURLToPath(new URL(relative, import.meta.url))
+
+const meta = JSON.parse(await readFile(path("./src/meta.json"), "utf8"))
+const source = await readFile(path("./src/main.js"), "utf8")
 
 const slug = meta.repository.split("/")[1]
 const repoUrl = `https://github.com/${meta.repository}`
-const downloadUrl =
-  `${repoUrl}/releases/latest/download/${slug}.user.js`
+const downloadUrl = `${repoUrl}/releases/latest/download/${slug}.user.js`
 
-const dist = new URL("./dist/", import.meta.url)
-const extDir = new URL("./dist/extension/", import.meta.url)
-const iconDir = new URL("./dist/extension/icons/", import.meta.url)
+const dist = path("./dist/")
+const extDir = path("./dist/extension/")
+const iconDir = path("./dist/extension/icons/")
 
 // --- 유저스크립트 배너 생성 -----------------------------------------------
 const pad = (s: string) => s.padEnd(13)
@@ -58,35 +60,37 @@ const manifest = {
     },
   ],
 }
+const manifestJson = JSON.stringify(manifest, null, 2) + "\n"
 
 // --- 파일 쓰기 ------------------------------------------------------------
-await Deno.remove(dist, { recursive: true }).catch(() => {})
-await Deno.mkdir(iconDir, { recursive: true })
+await rm(dist, { recursive: true, force: true })
+await mkdir(iconDir, { recursive: true })
 
-await Deno.writeTextFile(new URL(`${slug}.user.js`, dist), userscript)
-await Deno.writeTextFile(new URL("manifest.json", extDir), JSON.stringify(manifest, null, 2) + "\n")
-await Deno.writeTextFile(new URL("content.js", extDir), body)
+await writeFile(`${dist}${slug}.user.js`, userscript)
+await writeFile(`${extDir}manifest.json`, manifestJson)
+await writeFile(`${extDir}content.js`, body)
 
-for (const size of [16, 48, 128]) {
-  await Deno.copyFile(
-    new URL(`./icons/icon-${size}.png`, import.meta.url),
-    new URL(`icon-${size}.png`, iconDir),
-  )
-}
+const sizes = [16, 48, 128]
+const icons: Record<string, Uint8Array> = Object.fromEntries(
+  await Promise.all(
+    sizes.map(async (size) => [
+      `icons/icon-${size}.png`,
+      new Uint8Array(await readFile(path(`./icons/icon-${size}.png`))),
+    ]),
+  ),
+)
+await Promise.all(
+  Object.entries(icons).map(([name, bytes]) => writeFile(`${extDir}${name}`, bytes)),
+)
 
 // --- 확장 zip 생성 (웹스토어 업로드용) ------------------------------------
-const zipWriter = new ZipWriter(new BlobWriter("application/zip"))
-await zipWriter.add("manifest.json", new TextReader(JSON.stringify(manifest, null, 2) + "\n"))
-await zipWriter.add("content.js", new TextReader(body))
-for (const size of [16, 48, 128]) {
-  const bytes = await Deno.readFile(new URL(`./icons/icon-${size}.png`, import.meta.url))
-  await zipWriter.add(`icons/icon-${size}.png`, new Uint8ArrayReader(bytes))
-}
-const zipBlob = await zipWriter.close()
-await Deno.writeFile(
-  new URL(`${slug}-extension.zip`, dist),
-  new Uint8Array(await zipBlob.arrayBuffer()),
-)
+const enc = new TextEncoder()
+const zip = zipSync({
+  "manifest.json": enc.encode(manifestJson),
+  "content.js": enc.encode(body),
+  ...icons,
+})
+await writeFile(`${dist}${slug}-extension.zip`, zip)
 
 console.log(`✓ dist/${slug}.user.js`)
 console.log(`✓ dist/extension/ (manifest.json, content.js, icons/)`)

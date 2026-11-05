@@ -37,20 +37,21 @@
 
 ## 개발
 
-[Deno](https://deno.com) 필요.
+[Node.js](https://nodejs.org) 22.18+ 와 [pnpm](https://pnpm.io) 필요. 툴체인은 [Vite+](https://viteplus.dev)(`vp`)입니다.
 
 ```sh
-deno task build   # dist/ 에 유저스크립트 + 확장 + zip 생성
-deno task check   # 타입 체크
+pnpm install
+pnpm build   # dist/ 에 유저스크립트 + 확장 + zip 생성
+pnpm check   # 포맷·린트(vp check) + 타입 체크(tsc)
 ```
 
 빌드 산출물 (`dist/`, git 미추적):
 
-| 파일 | 용도 |
-| --- | --- |
-| `dist/hulam-vacation-calculator.user.js` | 유저스크립트 |
-| `dist/extension/` | 크롬 MV3 확장 (개발자 모드 → "압축해제된 확장 프로그램 로드") |
-| `dist/hulam-vacation-calculator-extension.zip` | 웹스토어 업로드용 |
+| 파일                                           | 용도                                                          |
+| ---------------------------------------------- | ------------------------------------------------------------- |
+| `dist/hulam-vacation-calculator.user.js`       | 유저스크립트                                                  |
+| `dist/extension/`                              | 크롬 MV3 확장 (개발자 모드 → "압축해제된 확장 프로그램 로드") |
+| `dist/hulam-vacation-calculator-extension.zip` | 웹스토어 업로드용                                             |
 
 이름·버전·`@match` 등 메타데이터는 [`src/meta.json`](src/meta.json) 한 곳에서만
 관리하며, 유저스크립트 배너와 확장 manifest가 여기서 생성됩니다. 버전을 올리려면

@@ -1,9 +1,0 @@
-{
-  "fmt": {
-    "semiColons": false
-  },
-  "tasks": {
-    "build": "deno run -A build.ts",
-    "check": "deno check build.ts && deno check --config src/deno.json src/main.js"
-  }
-}

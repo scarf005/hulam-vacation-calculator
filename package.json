@@ -1,0 +1,20 @@
+{
+  "name": "hulam-vacation-calculator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.ts",
+    "typecheck": "tsc -p .",
+    "check": "vp check && tsc -p ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "fflate": "^0.8.2",
+    "typescript": "^7.0.2",
+    "vite-plus": "^1.5.0"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "packageManager": "pnpm@10.13.1"
+}
