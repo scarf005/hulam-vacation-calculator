@@ -341,6 +341,9 @@ const render = (holidays, loading = false) => {
     el.append(seg)
   })
 
+  const grandTotal = categories.reduce((sum, c) => sum + totals[c], 0)
+  el.append(` · 총합 ${fmt(grandTotal)}일`)
+
   if (loading) el.append(" (갱신 중…)")
 
   const tip = getTooltip()
